@@ -4,10 +4,19 @@ import path from 'path'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const rawComfyHost = (env.VITE_COMFYUI_HOST || '127.0.0.1').replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
+  const comfyHostSetting = env.VITE_COMFYUI_HOST || '127.0.0.1';
+  const comfyProtocol = /^https:\/\//i.test(comfyHostSetting) ? 'https' : 'http';
+  const parsedComfyUrl = (() => {
+    try {
+      return new URL(comfyHostSetting.includes('://') ? comfyHostSetting : `${comfyProtocol}://${comfyHostSetting}`);
+    } catch {
+      return null;
+    }
+  })();
+  const rawComfyHost = (parsedComfyUrl?.hostname || comfyHostSetting).replace(/^https?:\/\//i, '').replace(/\/.*$/, '');
   const comfyHost = rawComfyHost.includes(':') && !rawComfyHost.startsWith('[') ? `[${rawComfyHost}]` : rawComfyHost;
-  const comfyPort = Number(env.VITE_COMFYUI_PORT) || 8188;
-  const comfyOrigin = `http://${comfyHost}:${comfyPort}`;
+  const comfyPort = Number(env.VITE_COMFYUI_PORT) || Number(parsedComfyUrl?.port) || (comfyProtocol === 'https' ? 443 : 8188);
+  const comfyOrigin = `${comfyProtocol}://${comfyHost}:${comfyPort}`;
 
   return {
     plugins: [react()],

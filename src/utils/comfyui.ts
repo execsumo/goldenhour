@@ -14,12 +14,25 @@ function cleanHost(host: string): string {
   return normalized.replace(/:.*$/, '');
 }
 
+function hostUsesHttps(host: string): boolean {
+  return /^https:\/\//i.test(host.trim());
+}
+
 function formatHost(host: string): string {
   return host.includes(':') ? `[${host}]` : host;
 }
 
-const proxyHost = cleanHost(import.meta.env?.VITE_COMFYUI_HOST || '127.0.0.1').toLowerCase();
-const proxyPort = Number(import.meta.env?.VITE_COMFYUI_PORT) || 8188;
+const proxyHostSetting = import.meta.env?.VITE_COMFYUI_HOST || '127.0.0.1';
+const proxyHost = cleanHost(proxyHostSetting).toLowerCase();
+const proxyHttps = hostUsesHttps(proxyHostSetting);
+const proxyUrlPort = (() => {
+  try {
+    return new URL(proxyHostSetting).port;
+  } catch {
+    return '';
+  }
+})();
+const proxyPort = Number(import.meta.env?.VITE_COMFYUI_PORT) || Number(proxyUrlPort) || (proxyHttps ? 443 : 8188);
 
 function isLoopbackHost(configHost: string): boolean {
   const host = cleanHost(configHost).toLowerCase();
@@ -30,6 +43,7 @@ function matchesProxyTarget(config: ComfyUIConfig): boolean {
   const host = cleanHost(config.host).toLowerCase();
   const port = Number(config.port) || 8188;
   if (port !== proxyPort) return false;
+  if (/^https?:\/\//i.test(config.host) && hostUsesHttps(config.host) !== proxyHttps) return false;
   // Any loopback alias reaches the same machine, so a saved "localhost" must not
   // lose the proxy just because the proxy target is spelled "127.0.0.1".
   // A remote host preset via VITE_COMFYUI_HOST is the proxy's own target, so it
@@ -46,8 +60,9 @@ function getWebSocketUrl(config: ComfyUIConfig, clientId: string): string {
     return `${protocol}//${window.location.host}/comfyui-api/ws?clientId=${clientId}`;
   }
   const host = cleanHost(config.host) || '127.0.0.1';
-  const port = Number(config.port) || 8188;
-  return `ws://${formatHost(host)}:${port}/ws?clientId=${clientId}`;
+  const port = Number(config.port) || (hostUsesHttps(config.host) ? 443 : 8188);
+  const protocol = hostUsesHttps(config.host) ? 'wss:' : 'ws:';
+  return `${protocol}//${formatHost(host)}:${port}/ws?clientId=${clientId}`;
 }
 
 /**
@@ -520,8 +535,9 @@ function getBaseUrl(config: ComfyUIConfig): string {
     return '/comfyui-api';
   }
   const host = cleanHost(config.host);
-  const port = Number(config.port) || 8188;
-  return `http://${formatHost(host)}:${port}`;
+  const secure = hostUsesHttps(config.host);
+  const port = Number(config.port) || (secure ? 443 : 8188);
+  return `${secure ? 'https' : 'http'}://${formatHost(host)}:${port}`;
 }
 
 /**

@@ -86,7 +86,7 @@ VITE_COMFYUI_HOST=127.0.0.1
 VITE_COMFYUI_PORT=8188
 ```
 
-Vite reads `.env` only at startup and compiles the values into the bundle, so changes don't hot-reload: restart `npm run dev` / `npm run preview` after editing `.env`, and re-run `npm run build` for a deployed `dist/`.
+Vite reads `.env` at startup/build and compiles the values into the bundle. Restart `npm run dev` / `npm run preview` after editing `.env`, and re-run `npm run build` for a deployed `dist/`. For HTTPS ComfyUI endpoints, include the scheme in `VITE_COMFYUI_HOST` (for example, `https://comfyui.example.ts.net`); the port defaults to 443 for HTTPS and 8188 otherwise.
 
 #### Preconfiguring for guests
 
@@ -96,7 +96,7 @@ Set `VITE_GEMINI_API_KEY` and/or `VITE_COMFYUI_HOST` / `VITE_COMFYUI_PORT` so pe
 
 ### ComfyUI connection & CORS
 
-When the configured ComfyUI target matches the proxy host/port (any loopback alias counts as a match for a loopback proxy target), the Vite dev or preview server proxies requests through `/comfyui-api` (see [`vite.config.ts`](vite.config.ts)) to avoid CORS issues. The proxy target defaults to `127.0.0.1:8188` and can be set with `VITE_COMFYUI_HOST` and `VITE_COMFYUI_PORT`; the Settings host and port must match those values for the proxy to be used. A remote host set via `VITE_COMFYUI_HOST` is proxied too. Any other host or port connects directly, so ComfyUI must be started with `--enable-cors-header` for those connections.
+When the configured ComfyUI target matches the proxy host/port (and scheme), the Vite dev or preview server proxies requests through `/comfyui-api` (see [`vite.config.ts`](vite.config.ts)) to avoid CORS issues. The proxy target defaults to `127.0.0.1:8188` and can be set with `VITE_COMFYUI_HOST` and `VITE_COMFYUI_PORT`; use an `https://` host for TLS endpoints. The Settings host and port must match those values for the proxy to be used. A remote host set via `VITE_COMFYUI_HOST` is proxied too. Any other host or port connects directly, so ComfyUI must allow the app's origin via CORS.
 
 ### Live Previews & Progress
 

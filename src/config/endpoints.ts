@@ -21,8 +21,19 @@ export const DEFAULT_COMFYUI_HOST: string =
   (import.meta as any).env?.VITE_COMFYUI_HOST ||
   '127.0.0.1';
 
+const comfyHostUsesHttps = /^https:\/\//i.test(DEFAULT_COMFYUI_HOST);
+const comfyHostUrlPort = (() => {
+  try {
+    return new URL(DEFAULT_COMFYUI_HOST).port;
+  } catch {
+    return '';
+  }
+})();
+
 export const DEFAULT_COMFYUI_PORT: number =
-  Number((import.meta as any).env?.VITE_COMFYUI_PORT) || 8188;
+  Number((import.meta as any).env?.VITE_COMFYUI_PORT) ||
+  Number(comfyHostUrlPort) ||
+  (comfyHostUsesHttps ? 443 : 8188);
 
 /**
  * Operator-supplied presets. When set, guests can generate without entering
