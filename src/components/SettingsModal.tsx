@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Eye, EyeOff, Trash2, Download, Upload, Wifi, WifiOff, Cloud, Monitor } from 'lucide-react';
-import { getApiKey, setApiKey, exportSettings, importSettings, getComfyUIConfig, setComfyUIConfig } from '../utils/settings';
+import { getStoredApiKey, hasPresetApiKey, setApiKey, exportSettings, importSettings, getComfyUIConfig, setComfyUIConfig } from '../utils/settings';
 import { testConnection } from '../utils/comfyui';
 import { BackendType, ComfyUIConfig, RTX_SCALE_OPTIONS } from '../types';
+import { DEFAULT_COMFYUI_HOST, DEFAULT_COMFYUI_PORT } from '../config';
 
 interface SettingsModalProps {
   open: boolean;
@@ -20,8 +21,8 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
   const workflowInputRef = useRef<HTMLInputElement>(null);
 
   // ComfyUI config state
-  const [comfyHost, setComfyHost] = useState('127.0.0.1');
-  const [comfyPort, setComfyPort] = useState('8188');
+  const [comfyHost, setComfyHost] = useState(DEFAULT_COMFYUI_HOST);
+  const [comfyPort, setComfyPort] = useState(DEFAULT_COMFYUI_PORT.toString());
   const [comfyStatus, setComfyStatus] = useState<'idle' | 'testing' | 'connected' | 'error'>('idle');
   const [comfyStatusMessage, setComfyStatusMessage] = useState('');
   const [hasWorkflow, setHasWorkflow] = useState(false);
@@ -32,7 +33,7 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
 
   useEffect(() => {
     if (open) {
-      setKey(getApiKey());
+      setKey(getStoredApiKey());
       setConfirmClear(false);
       const cfg = getComfyUIConfig();
       setComfyHost(cfg.host);
@@ -52,8 +53,8 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
 
     // Also save ComfyUI config
     const cfg = getComfyUIConfig();
-    cfg.host = comfyHost.trim() || '127.0.0.1';
-    cfg.port = parseInt(comfyPort, 10) || 8188;
+    cfg.host = comfyHost.trim() || DEFAULT_COMFYUI_HOST;
+    cfg.port = parseInt(comfyPort, 10) || DEFAULT_COMFYUI_PORT;
     cfg.rtxUpscale = rtxUpscale;
     cfg.rtxUpscaleScale = rtxUpscaleScale;
     setComfyUIConfig(cfg);
@@ -65,8 +66,8 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
     setComfyStatus('testing');
     setComfyStatusMessage('Testing...');
     const config: ComfyUIConfig = {
-      host: comfyHost.trim() || '127.0.0.1',
-      port: parseInt(comfyPort, 10) || 8188,
+      host: comfyHost.trim() || DEFAULT_COMFYUI_HOST,
+      port: parseInt(comfyPort, 10) || DEFAULT_COMFYUI_PORT,
       workflowJson: null,
     };
     const result = await testConnection(config);
@@ -136,7 +137,7 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
       try {
         const data = JSON.parse(reader.result as string);
         importSettings(data);
-        setKey(getApiKey());
+        setKey(getStoredApiKey());
         window.location.reload();
       } catch {
         alert('Invalid settings file');
@@ -195,7 +196,7 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
             }`}
           >
             <Monitor size={14} />
-            ComfyUI (Local)
+            ComfyUI
           </button>
         </div>
 
@@ -208,7 +209,7 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
                 type={showKey ? 'text' : 'password'}
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
-                placeholder="Enter your Gemini API key..."
+                placeholder={hasPresetApiKey() ? 'Using pre-configured key (enter one to override)' : 'Enter your Gemini API key...'}
                 className="input-field !pr-10"
               />
               <button
@@ -231,7 +232,7 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
                   type="text"
                   value={comfyHost}
                   onChange={(e) => setComfyHost(e.target.value)}
-                  placeholder="127.0.0.1"
+                  placeholder={DEFAULT_COMFYUI_HOST}
                   className="input-field"
                 />
               </div>
@@ -241,7 +242,7 @@ export default function SettingsModal({ open, onClose, onClearHistory, activeBac
                   type="text"
                   value={comfyPort}
                   onChange={(e) => setComfyPort(e.target.value)}
-                  placeholder="8188"
+                  placeholder={DEFAULT_COMFYUI_PORT.toString()}
                   className="input-field"
                 />
               </div>
