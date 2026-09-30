@@ -86,6 +86,8 @@ VITE_COMFYUI_HOST=127.0.0.1
 VITE_COMFYUI_PORT=8188
 ```
 
+Vite reads `.env` only at startup and compiles the values into the bundle, so changes don't hot-reload: restart `npm run dev` / `npm run preview` after editing `.env`, and re-run `npm run build` for a deployed `dist/`.
+
 #### Preconfiguring for guests
 
 Set `VITE_GEMINI_API_KEY` and/or `VITE_COMFYUI_HOST` / `VITE_COMFYUI_PORT` so people using your instance can generate without entering anything in Settings. Values a user enters in Settings still override the presets. If only ComfyUI is preset, ComfyUI becomes the default backend.
