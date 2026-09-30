@@ -86,7 +86,7 @@ VITE_COMFYUI_HOST=127.0.0.1
 VITE_COMFYUI_PORT=8188
 ```
 
-Vite reads `.env` at startup/build and compiles the values into the bundle. Restart `npm run dev` / `npm run preview` after editing `.env`, and re-run `npm run build` for a deployed `dist/`. For HTTPS ComfyUI endpoints, include the scheme in `VITE_COMFYUI_HOST` (for example, `https://comfyui.example.ts.net`); the port defaults to 443 for HTTPS and 8188 otherwise.
+Vite reads `.env` at startup/build and compiles the values into the bundle. Restart `npm run dev` / `npm run preview` after editing `.env`, and re-run `npm run build` for a deployed `dist/`. For HTTPS ComfyUI endpoints, include the scheme in `VITE_COMFYUI_HOST` (for example, `https://comfyui.example.ts.net`); the port defaults to 443 for HTTPS and 8188 otherwise. Set `VITE_ALLOWED_HOSTS` to a comma-separated list of hostnames accepted by Vite's dev/preview servers; a leading dot allows the domain and its subdomains.
 
 #### Preconfiguring for guests
 

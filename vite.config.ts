@@ -17,12 +17,16 @@ export default defineConfig(({ mode }) => {
   const comfyHost = rawComfyHost.includes(':') && !rawComfyHost.startsWith('[') ? `[${rawComfyHost}]` : rawComfyHost;
   const comfyPort = Number(env.VITE_COMFYUI_PORT) || Number(parsedComfyUrl?.port) || (comfyProtocol === 'https' ? 443 : 8188);
   const comfyOrigin = `${comfyProtocol}://${comfyHost}:${comfyPort}`;
+  const allowedHosts = (env.VITE_ALLOWED_HOSTS || '.goose-marlin.ts.net')
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean);
 
   return {
     plugins: [react()],
     server: {
       host: '127.0.0.1',
-      allowedHosts: ['.goose-marlin.ts.net'],
+      allowedHosts,
       port: 5173,
       strictPort: true,
       cors: false,
@@ -47,7 +51,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: {
-      allowedHosts: ['.goose-marlin.ts.net'],
+      allowedHosts,
     },
     resolve: {
       alias: {
