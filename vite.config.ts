@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       host: '127.0.0.1',
+      allowedHosts: ['.goose-marlin.ts.net'],
       port: 5173,
       strictPort: true,
       cors: false,
@@ -44,6 +45,9 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
+    },
+    preview: {
+      allowedHosts: ['.goose-marlin.ts.net'],
     },
     resolve: {
       alias: {
