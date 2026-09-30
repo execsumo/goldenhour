@@ -29,9 +29,12 @@ function isLoopbackHost(configHost: string): boolean {
 function matchesProxyTarget(config: ComfyUIConfig): boolean {
   const host = cleanHost(config.host).toLowerCase();
   const port = Number(config.port) || 8188;
+  if (port !== proxyPort) return false;
   // Any loopback alias reaches the same machine, so a saved "localhost" must not
   // lose the proxy just because the proxy target is spelled "127.0.0.1".
-  return isLoopbackHost(host) && isLoopbackHost(proxyHost) && port === proxyPort;
+  // A remote host preset via VITE_COMFYUI_HOST is the proxy's own target, so it
+  // goes through the proxy too and needs no CORS setup on the ComfyUI side.
+  return host === proxyHost || (isLoopbackHost(host) && isLoopbackHost(proxyHost));
 }
 
 /**

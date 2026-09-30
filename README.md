@@ -70,7 +70,7 @@ npm run preview  # serve the production build locally
 Open **Settings** (gear icon) in the app:
 
 - **Backend** — Gemini or ComfyUI.
-- **Gemini** — paste your API key (masked, stored in `localStorage`).
+- **Gemini** — paste your API key (masked, stored in `localStorage`), or leave it blank to use a key preset via `VITE_GEMINI_API_KEY`.
 - **ComfyUI** — host/port, **Test Connection** (also probes for the RTX VSR node), optional custom API-format workflow upload, and — when RTX is detected — the **Upscale factor** control (2×/3×/4×). Seed and model-family controls are available in the generation workspace.
 
 ### Environment variables & default configurations
@@ -86,9 +86,15 @@ VITE_COMFYUI_HOST=127.0.0.1
 VITE_COMFYUI_PORT=8188
 ```
 
+#### Preconfiguring for guests
+
+Set `VITE_GEMINI_API_KEY` and/or `VITE_COMFYUI_HOST` / `VITE_COMFYUI_PORT` so people using your instance can generate without entering anything in Settings. Values a user enters in Settings still override the presets. If only ComfyUI is preset, ComfyUI becomes the default backend.
+
+> **Warning:** `VITE_*` variables are compiled into the client bundle. A preset `VITE_GEMINI_API_KEY` is visible to anyone who can load the app, so only use it on instances you trust everyone with access to.
+
 ### ComfyUI connection & CORS
 
-When the configured ComfyUI target is a loopback host and matches the proxy host/port, the Vite dev or preview server proxies requests through `/comfyui-api` (see [`vite.config.ts`](vite.config.ts)) to avoid CORS issues. The proxy target defaults to `127.0.0.1:8188` and can be set with `VITE_COMFYUI_HOST` and `VITE_COMFYUI_PORT`; the Settings host and port must match those values for the proxy to be used. LAN hosts and other ports connect directly, so ComfyUI must be started with `--enable-cors-header` for those connections.
+When the configured ComfyUI target matches the proxy host/port (any loopback alias counts as a match for a loopback proxy target), the Vite dev or preview server proxies requests through `/comfyui-api` (see [`vite.config.ts`](vite.config.ts)) to avoid CORS issues. The proxy target defaults to `127.0.0.1:8188` and can be set with `VITE_COMFYUI_HOST` and `VITE_COMFYUI_PORT`; the Settings host and port must match those values for the proxy to be used. A remote host set via `VITE_COMFYUI_HOST` is proxied too. Any other host or port connects directly, so ComfyUI must be started with `--enable-cors-header` for those connections.
 
 ### Live Previews & Progress
 

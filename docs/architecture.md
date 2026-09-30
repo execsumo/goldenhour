@@ -41,7 +41,7 @@ The whole app is essentially one big stateful component (`App.tsx`) plus present
 
 ### Configuration layer — `src/config/`
 Centralized defaults and owner-tunable constants:
-- **`endpoints.ts`** — API base URLs (`API_BASE_URL`), Gemini model names (`IMAGE_MODEL`, `TEXT_MODEL`), and default ComfyUI connection options (`DEFAULT_COMFYUI_HOST`, `DEFAULT_COMFYUI_PORT`) with optional `import.meta.env.VITE_*` overrides.
+- **`endpoints.ts`** — API base URLs (`API_BASE_URL`), Gemini model names (`IMAGE_MODEL`, `TEXT_MODEL`), and default ComfyUI connection options (`DEFAULT_COMFYUI_HOST`, `DEFAULT_COMFYUI_PORT`) with optional `import.meta.env.VITE_*` overrides, plus operator presets (`PRESET_GEMINI_API_KEY` from `VITE_GEMINI_API_KEY`, `HAS_PRESET_COMFYUI`) that let guests generate without entering anything in Settings.
 - **`workflows.ts`** — Default ComfyUI txt2img API workflow graph (`DEFAULT_WORKFLOW`).
 - **`clips.ts`** — Default prompt modifier clips (`DEFAULT_CLIPS`).
 - **`templates.ts`** — Built-in prompt templates (`DEFAULT_TEMPLATES`).

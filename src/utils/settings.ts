@@ -16,6 +16,8 @@ import {
   DEFAULT_RESOLUTION,
   DEFAULT_ASPECT_RATIO,
   DEFAULT_AUTO_UPSCALE,
+  PRESET_GEMINI_API_KEY,
+  HAS_PRESET_COMFYUI,
 } from '../config';
 
 const API_KEY_KEY = 'goldenHour_apiKey';
@@ -44,8 +46,18 @@ function getItem(key: string): string | null {
 
 // ─── API Key ─────────────────────────────────────────────────────────────────
 
+/** The key in effect: the user's own if they entered one, else the preset. */
 export function getApiKey(): string {
+  return getStoredApiKey() || PRESET_GEMINI_API_KEY;
+}
+
+/** Only the key the user entered, excluding any preset from `.env`. */
+export function getStoredApiKey(): string {
   return getItem(API_KEY_KEY) || '';
+}
+
+export function hasPresetApiKey(): boolean {
+  return !!PRESET_GEMINI_API_KEY;
 }
 
 export function setApiKey(key: string): void {
@@ -55,7 +67,10 @@ export function setApiKey(key: string): void {
 // ─── Backend ─────────────────────────────────────────────────────────────────
 
 export function getBackend(): BackendType {
-  return (getItem(BACKEND_KEY) as BackendType) || 'gemini';
+  const stored = getItem(BACKEND_KEY) as BackendType | null;
+  if (stored) return stored;
+  // With only ComfyUI preconfigured, start guests on the backend that works.
+  return HAS_PRESET_COMFYUI && !PRESET_GEMINI_API_KEY ? 'comfyui' : 'gemini';
 }
 
 export function setBackend(value: BackendType): void {
@@ -385,7 +400,7 @@ export interface AppExportData {
 export function exportSettings(): AppExportData {
   return {
     version: 1,
-    apiKey: getApiKey(),
+    apiKey: getStoredApiKey(),
     templates: getTemplates(),
     resolution: getResolution(),
     aspectRatio: getAspectRatio(),

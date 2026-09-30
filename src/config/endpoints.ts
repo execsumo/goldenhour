@@ -23,3 +23,16 @@ export const DEFAULT_COMFYUI_HOST: string =
 
 export const DEFAULT_COMFYUI_PORT: number =
   Number((import.meta as any).env?.VITE_COMFYUI_PORT) || 8188;
+
+/**
+ * Operator-supplied presets. When set, guests can generate without entering
+ * anything in Settings; a value they do enter still takes precedence.
+ *
+ * NOTE: VITE_* values are compiled into the client bundle, so a preset Gemini
+ * key is readable by anyone who can load the app.
+ */
+export const PRESET_GEMINI_API_KEY: string =
+  (import.meta as any).env?.VITE_GEMINI_API_KEY || '';
+
+export const HAS_PRESET_COMFYUI: boolean =
+  !!(import.meta as any).env?.VITE_COMFYUI_HOST;

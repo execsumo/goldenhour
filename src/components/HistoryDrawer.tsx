@@ -563,7 +563,7 @@ export default function HistoryDrawer({
                   <div>
                     <span className="label">Backend</span>
                     <p className="text-[13px]" style={{ color: 'var(--text-primary)' }}>
-                      {expandedEntry.backend === 'comfyui' ? 'ComfyUI (Local)' : 'Gemini (Cloud)'}
+                      {expandedEntry.backend === 'comfyui' ? 'ComfyUI' : 'Gemini (Cloud)'}
                     </p>
                   </div>
                   <div>
