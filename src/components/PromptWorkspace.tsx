@@ -278,18 +278,8 @@ export default function PromptWorkspace({
 
   const seedControl = showSeed ? (
     <div>
-      <div className="flex items-center justify-between mb-1">
+      <div className="mb-1">
         <span className="label !mb-0">Seed</span>
-        <span
-          className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
-          style={{
-            color: comfySeedMode === 'fixed' ? 'var(--accent-primary, #d4a017)' : 'var(--text-secondary)',
-            background: comfySeedMode === 'fixed' ? 'var(--accent-glow)' : 'var(--icon-btn-hover)',
-            border: `1px solid ${comfySeedMode === 'fixed' ? 'var(--accent-primary, #d4a017)' : 'var(--border-subtle)'}`,
-          }}
-        >
-          {comfySeedMode === 'fixed' ? 'FIXED SEED' : 'RANDOM SEED'}
-        </span>
       </div>
       <div className="flex items-center gap-1.5">
         {comfySeedMode === 'fixed' ? (
@@ -315,42 +305,30 @@ export default function PromptWorkspace({
               style={{ background: 'var(--icon-btn-hover)', border: '1px solid var(--border-subtle)', color: 'var(--text-heading)' }}
               title={lastUsedSeed !== null && lastUsedSeed !== undefined ? 'Last used seed' : 'A random seed will be generated'}
             />
-            {lastUsedSeed !== null && lastUsedSeed !== undefined && (
-              <button
-                type="button"
-                onClick={() => {
-                  onComfySeedChange(lastUsedSeed);
-                  onComfySeedModeChange('fixed');
-                }}
-                className="px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors shrink-0"
-                style={{ background: 'var(--icon-btn-hover)', border: '1px solid var(--border-subtle)', color: 'var(--text-heading)' }}
-                title="Use this seed in fixed mode"
-              >
-                Use
-              </button>
-            )}
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            onComfySeedModeChange(comfySeedMode === 'fixed' ? 'random' : 'fixed');
-          }}
-          className="icon-btn !w-8 !h-8 shrink-0 rounded-lg flex items-center justify-center transition-colors"
-          style={{
-            background: comfySeedMode === 'fixed' ? 'var(--accent-glow)' : 'var(--icon-btn-hover)',
-            border: `1px solid ${comfySeedMode === 'fixed' ? 'var(--accent-primary, #d4a017)' : 'var(--border-subtle)'}`,
-          }}
-          title={comfySeedMode === 'fixed' ? 'Fixed seed (click for random)' : 'Random seed (click for fixed)'}
-          aria-label={comfySeedMode === 'fixed' ? 'Fixed seed selected; switch to random' : 'Random seed selected; switch to fixed'}
-          aria-pressed={comfySeedMode === 'fixed'}
-        >
-          {comfySeedMode === 'fixed' ? (
-            <Lock size={14} style={{ color: 'var(--accent-primary, #d4a017)' }} />
-          ) : (
-            <Dice5 size={14} style={{ color: 'var(--text-secondary)' }} />
-          )}
-        </button>
+        <div className="seg-control flex shrink-0" role="group" aria-label="Seed mode">
+          <button
+            type="button"
+            onClick={() => onComfySeedModeChange('random')}
+            className={comfySeedMode === 'random' ? 'seg-active' : ''}
+            title="Random seed"
+            aria-label="Random seed"
+            aria-pressed={comfySeedMode === 'random'}
+          >
+            <Dice5 size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onComfySeedModeChange('fixed')}
+            className={comfySeedMode === 'fixed' ? 'seg-active' : ''}
+            title="Fixed seed"
+            aria-label="Fixed seed"
+            aria-pressed={comfySeedMode === 'fixed'}
+          >
+            <Lock size={14} />
+          </button>
+        </div>
       </div>
     </div>
   ) : null;
