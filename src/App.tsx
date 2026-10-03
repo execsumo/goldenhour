@@ -38,12 +38,12 @@ import { parsePromptList, applyClipModifiers, estimateBatchCost, MAX_BATCH_PROMP
 function App() {
   // ─── State ──────────────────────────────────────────────────────────────
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(() => localStorage.getItem('goldenHour_historyOpen') !== 'false');
   const [hasApiKey, setHasApiKey] = useState(false);
   const [activeBackend, setActiveBackend] = useState<BackendType>(() => getBackend());
-  const [darkMode, setDarkMode] = useState(() => {
+  const [themeMode, setThemeMode] = useState<'system' | 'dark' | 'light'>(() => {
     const stored = localStorage.getItem('goldenHour_theme') || localStorage.getItem('nanoBanana_theme');
-    return stored ? stored === 'dark' : true;
+    return stored === 'dark' || stored === 'light' ? stored : 'system';
   });
 
   const [prompt, setPrompt] = useState('');
@@ -136,13 +136,19 @@ function App() {
   useEffect(() => {
     setHasApiKey(!!getApiKey());
     loadHistory();
-    // Apply initial theme
-    if (darkMode) {
-      document.documentElement.classList.remove('light');
-    } else {
-      document.documentElement.classList.add('light');
-    }
   }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      const isDark = themeMode === 'system' ? media.matches : themeMode === 'dark';
+      document.documentElement.classList.toggle('light', !isDark);
+    };
+    applyTheme();
+    if (themeMode !== 'system') return;
+    media.addEventListener('change', applyTheme);
+    return () => media.removeEventListener('change', applyTheme);
+  }, [themeMode]);
 
   // Resolves the model family for `modelName`, then either restores that
   // family's remembered steps/cfg/sampler/CLIP model (if it's been selected
@@ -263,17 +269,13 @@ function App() {
     setAutoUpscale(v);
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    setDarkMode((prev) => {
-      const next = !prev;
-      localStorage.setItem('goldenHour_theme', next ? 'dark' : 'light');
-      if (next) {
-        document.documentElement.classList.remove('light');
-      } else {
-        document.documentElement.classList.add('light');
-      }
-      return next;
-    });
+  const setThemeModeAndPersist = useCallback((mode: 'system' | 'dark' | 'light') => {
+    setThemeMode(mode);
+    if (mode === 'system') {
+      localStorage.removeItem('goldenHour_theme');
+    } else {
+      localStorage.setItem('goldenHour_theme', mode);
+    }
   }, []);
 
   const handleResolutionChange = useCallback((v: Resolution) => {
@@ -1108,7 +1110,11 @@ function App() {
       <header className="glass h-[52px] flex items-center justify-between px-5 shrink-0 z-30">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setDrawerOpen(!drawerOpen)}
+            onClick={() => setDrawerOpen((open) => {
+              const next = !open;
+              localStorage.setItem('goldenHour_historyOpen', String(next));
+              return next;
+            })}
             className="icon-btn"
             title="Toggle history"
           >
@@ -1158,13 +1164,32 @@ function App() {
             </button>
           )}
 
-          <button
-            onClick={toggleTheme}
-            className="icon-btn"
-            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+          <div className="seg-control flex" role="group" aria-label="Color theme">
+            <button
+              type="button"
+              onClick={() => setThemeModeAndPersist('system')}
+              className={themeMode === 'system' ? 'seg-active' : ''}
+              title="Use system theme"
+              aria-label="Use system theme"
+              aria-pressed={themeMode === 'system'}
+            ><Monitor size={14} /></button>
+            <button
+              type="button"
+              onClick={() => setThemeModeAndPersist('light')}
+              className={themeMode === 'light' ? 'seg-active' : ''}
+              title="Light theme"
+              aria-label="Light theme"
+              aria-pressed={themeMode === 'light'}
+            ><Sun size={14} /></button>
+            <button
+              type="button"
+              onClick={() => setThemeModeAndPersist('dark')}
+              className={themeMode === 'dark' ? 'seg-active' : ''}
+              title="Dark theme"
+              aria-label="Dark theme"
+              aria-pressed={themeMode === 'dark'}
+            ><Moon size={14} /></button>
+          </div>
 
           <button
             onClick={() => {
@@ -1189,7 +1214,10 @@ function App() {
           open={drawerOpen}
           history={history}
           upscaleScale={upscaleScale}
-          onClose={() => setDrawerOpen(false)}
+          onClose={() => {
+            localStorage.setItem('goldenHour_historyOpen', 'false');
+            setDrawerOpen(false);
+          }}
           onReusePrompt={handleReusePrompt}
           onDelete={handleDeleteHistory}
           onClearAll={handleClearHistory}
