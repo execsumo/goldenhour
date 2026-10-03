@@ -15,7 +15,6 @@ import {
   ChevronRight,
   Dice5,
   Lock,
-  Unlock,
 } from 'lucide-react';
 import {
   Resolution,
@@ -281,8 +280,15 @@ export default function PromptWorkspace({
     <div>
       <div className="flex items-center justify-between mb-1">
         <span className="label !mb-0">Seed</span>
-        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-          {comfySeedMode === 'fixed' ? 'Fixed' : 'Random'}
+        <span
+          className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
+          style={{
+            color: comfySeedMode === 'fixed' ? 'var(--accent-primary, #d4a017)' : 'var(--text-secondary)',
+            background: comfySeedMode === 'fixed' ? 'var(--accent-glow)' : 'var(--icon-btn-hover)',
+            border: `1px solid ${comfySeedMode === 'fixed' ? 'var(--accent-primary, #d4a017)' : 'var(--border-subtle)'}`,
+          }}
+        >
+          {comfySeedMode === 'fixed' ? 'FIXED SEED' : 'RANDOM SEED'}
         </span>
       </div>
       <div className="flex items-center gap-1.5">
@@ -328,32 +334,21 @@ export default function PromptWorkspace({
         <button
           type="button"
           onClick={() => {
-            const newRandomSeed = Math.floor(Math.random() * (2 ** 32));
-            onComfySeedChange(newRandomSeed);
-            onComfySeedModeChange('fixed');
-          }}
-          className="icon-btn !w-8 !h-8 shrink-0 rounded-lg flex items-center justify-center transition-colors"
-          style={{ background: 'var(--icon-btn-hover)', border: '1px solid var(--border-subtle)' }}
-          title="Generate random seed (switches to fixed)"
-        >
-          <Dice5 size={14} style={{ color: 'var(--text-secondary)' }} />
-        </button>
-        <button
-          type="button"
-          onClick={() => {
             onComfySeedModeChange(comfySeedMode === 'fixed' ? 'random' : 'fixed');
           }}
           className="icon-btn !w-8 !h-8 shrink-0 rounded-lg flex items-center justify-center transition-colors"
           style={{
             background: comfySeedMode === 'fixed' ? 'var(--accent-glow)' : 'var(--icon-btn-hover)',
-            border: '1px solid var(--border-subtle)',
+            border: `1px solid ${comfySeedMode === 'fixed' ? 'var(--accent-primary, #d4a017)' : 'var(--border-subtle)'}`,
           }}
-          title={comfySeedMode === 'fixed' ? 'Lock toggle: Fixed (click to set Random)' : 'Lock toggle: Random (click to set Fixed)'}
+          title={comfySeedMode === 'fixed' ? 'Fixed seed (click for random)' : 'Random seed (click for fixed)'}
+          aria-label={comfySeedMode === 'fixed' ? 'Fixed seed selected; switch to random' : 'Random seed selected; switch to fixed'}
+          aria-pressed={comfySeedMode === 'fixed'}
         >
           {comfySeedMode === 'fixed' ? (
-            <Lock size={13} style={{ color: 'var(--accent-primary, #d4a017)' }} />
+            <Lock size={14} style={{ color: 'var(--accent-primary, #d4a017)' }} />
           ) : (
-            <Unlock size={13} style={{ color: 'var(--text-secondary)' }} />
+            <Dice5 size={14} style={{ color: 'var(--text-secondary)' }} />
           )}
         </button>
       </div>
