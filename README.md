@@ -1,11 +1,15 @@
 # 🌅 Golden Hour
 
-A personal, single-page image-generation studio that runs entirely in the browser. It drives **two interchangeable backends** from one UI:
+**An image-generation workbench for people who care more about the output than the backend.**
 
-- **Gemini (cloud)** — Google's `gemini-3.1-flash-image-preview` model via your own API key.
-- **ComfyUI (local)** — a locally running ComfyUI instance with zero-disk-write WebSocket image streaming (`SaveImageWebsocket`), including optional **NVIDIA RTX Video Super Resolution (VSR)** hardware upscaling.
+Golden Hour puts **Gemini in the cloud** and **ComfyUI on your machine** behind one browser-based workspace, so you can move between fast experimentation and local control without changing how you work.
 
-There is no server component. All API calls are made client-side, your API key stays in `localStorage`, and generated images live in your browser's IndexedDB.
+- **Gemini** for fast cloud generation with your own API key.
+- **ComfyUI** for local generation, model control, reproducible seeds, live progress, and optional NVIDIA RTX Video Super Resolution (VSR) upscaling.
+
+The point is a tighter creative loop: **prompt → generate → compare → remix → repeat**.
+
+Golden Hour itself has no application server. API calls are made client-side, your Gemini key stays in `localStorage`, generation history lives in IndexedDB, and ComfyUI can stream images back over WebSocket without intermediate disk writes.
 
 ---
 
