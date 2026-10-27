@@ -1371,6 +1371,8 @@ function App() {
           setSettingsOpen(false);
           setHasApiKey(!!getApiKey());
           setComfyConfig(getComfyUIConfig());
+          // Endpoint may have just changed; reload model/LoRA lists from it.
+          if (activeBackend === 'comfyui') fetchComfyAssets();
         }}
         onClearHistory={handleClearHistory}
         activeBackend={activeBackend}
