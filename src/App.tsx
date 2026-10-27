@@ -853,6 +853,16 @@ function App() {
     // out of localStorage; awaiting first would let it run against the old
     // values and undo the restore.
     setPrompt(s.prompt);
+    // Fill the batch box too, so the mode toggle regenerates either the single
+    // image or its whole batch. Batch members are the history rows sharing the
+    // batchId (failed/cancelled items left no row, so they can't be recovered).
+    const batchPrompts = s.batchId
+      ? history
+          .filter((h) => h.settings.batchId === s.batchId)
+          .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+          .map((h) => h.settings.prompt)
+      : [];
+    setBatchText((batchPrompts.length > 0 ? batchPrompts : [s.prompt]).join('\n'));
 
     // Always restored, and first: it decides which controls are even live.
     const recordBackend = entry.backend ?? s.backend;
@@ -1002,6 +1012,7 @@ function App() {
       showToast(`Remixed, but couldn't restore: ${dropped.join(', ')}`, 'info');
     }
   }, [
+    history,
     activeBackend,
     numberOfImages,
     resolution,
