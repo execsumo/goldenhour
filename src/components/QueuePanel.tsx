@@ -12,11 +12,18 @@ interface QueuePanelProps {
 
 export default function QueuePanel({ queueItems, onRemoveItem, onClearQueue, onRetryFailed, onCancelRunning }: QueuePanelProps) {
   const runningRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const runningId = queueItems.find(i => i.status === 'running')?.id;
 
   // Keep the active item in view as the queue advances.
   useEffect(() => {
-    runningRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Scroll the list itself; scrollIntoView would also scroll the page.
+    const list = listRef.current;
+    const el = runningRef.current;
+    if (!list || !el) return;
+    if (el.offsetTop < list.scrollTop) list.scrollTo({ top: el.offsetTop, behavior: 'smooth' });
+    else if (el.offsetTop + el.offsetHeight > list.scrollTop + list.clientHeight)
+      list.scrollTo({ top: el.offsetTop + el.offsetHeight - list.clientHeight, behavior: 'smooth' });
   }, [runningId]);
 
   if (queueItems.length === 0) return null;
@@ -67,7 +74,7 @@ export default function QueuePanel({ queueItems, onRemoveItem, onClearQueue, onR
         </div>
       </div>
 
-      <div className="max-h-[240px] overflow-y-auto flex flex-col gap-2">
+      <div ref={listRef} className="relative max-h-[240px] overflow-y-auto flex flex-col gap-2">
         {queueItems.map(item => (
           <div
             key={item.id}
