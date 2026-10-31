@@ -17,6 +17,7 @@ interface HistoryDrawerProps {
   onDelete: (id: string) => void;
   onClearAll: () => void;
   onUpscaleRecord: (recordId: string) => Promise<void>;
+  showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
 }
 
 // ─── File System Access ──────────────────────────────────────────────────────
@@ -137,6 +138,7 @@ export default function HistoryDrawer({
   onDelete,
   onClearAll,
   onUpscaleRecord,
+  showToast,
 }: HistoryDrawerProps) {
   // The row the modal is showing. All of its metadata is already in `history`;
   // only the image payloads are fetched, and only for this one record.
@@ -256,58 +258,98 @@ export default function HistoryDrawer({
     return () => window.removeEventListener('keydown', handler);
   }, [expandedId, navigateHistory]);
 
+  const exportInProgressRef = useRef(false);
   const handleDownloadAll = useCallback(async () => {
-    if (history.length === 0) return;
-
-    // The picker call must happen before the first `await` or the user
-    // activation is already spent and it fails silently.
-    let dir: FileSystemDirectoryHandleLike | null = null;
-    const picker = (window as unknown as { showDirectoryPicker?: DirectoryPicker }).showDirectoryPicker;
-    if (picker) {
-      try {
-        dir = await picker.call(window, { mode: 'readwrite' });
-      } catch {
-        return; // cancelled
-      }
-    }
-
+    if (history.length === 0 || exportInProgressRef.current) return;
+    exportInProgressRef.current = true;
     setIsExporting(true);
+
+    const total = history.reduce((count, entry) => count + 1 + (entry.hasUpscaled ? 1 : 0), 0);
+    let completed = 0;
+    let saved = 0;
+    let failed = 0;
+    const markComplete = () => {
+      completed++;
+      if (completed % 10 === 0 && completed < total) {
+        showToast(`Saving history: ${completed}/${total} files…`, 'info');
+      }
+    };
+
     try {
+      // The picker call must happen before the first `await` or the user
+      // activation is already spent and it fails silently.
+      let dir: FileSystemDirectoryHandleLike | null = null;
+      const picker = (window as unknown as { showDirectoryPicker?: DirectoryPicker }).showDirectoryPicker;
+      if (picker) {
+        try {
+          dir = await picker.call(window, { mode: 'readwrite' });
+        } catch (e) {
+          if (e instanceof Error && e.name !== 'AbortError') {
+            console.error('Could not open history export folder:', e);
+            showToast('Could not open the selected export folder.', 'error');
+          }
+          return; // cancelled or unavailable
+        }
+      }
+
+      const recordFailure = (name: string, error: unknown) => {
+        failed++;
+        console.error(`Failed to export ${name}:`, error);
+      };
+
       if (dir) {
-        // One image resident at a time, at any history size. The zip path below
-        // cannot do this: JSZip's generateAsync accumulates every chunk, concats
-        // it into one Uint8Array and then copies that into a Blob, so its peak is
-        // ~3x the archive regardless of what the inputs are.
+        // One image resident at a time. Handle each file independently: a single
+        // failed write must not silently abort the rest of a large export.
+        const saveOne = async (name: string, load: () => Promise<Blob | null>) => {
+          try {
+            const blob = await load();
+            if (!blob) throw new Error('Image is missing from local history storage');
+            await writeFileTo(dir!, name, blob);
+            saved++;
+          } catch (e) {
+            recordFailure(name, e);
+          } finally {
+            markComplete();
+          }
+        };
+
         for (const entry of history) {
           const ts = entry.timestamp.replace(/[:.]/g, '-');
-          const image = await getImageBlob(entry.id);
-          if (image) await writeFileTo(dir, `goldenhour_${ts}.png`, image);
+          await saveOne(`goldenhour_${ts}.png`, () => getImageBlob(entry.id));
 
           if (entry.hasUpscaled) {
-            const upscaled = await getUpscaledBlob(entry.id);
-            if (upscaled) {
-              const label = getRecordScaleLabel(entry, upscaleScale);
-              await writeFileTo(dir, `goldenhour_${ts}_${label}.png`, upscaled);
-            }
+            const label = getRecordScaleLabel(entry, upscaleScale);
+            await saveOne(`goldenhour_${ts}_${label}.png`, () => getUpscaledBlob(entry.id));
           }
         }
+        showToast(
+          failed === 0 ? `Saved all ${saved} history files.` : `Saved ${saved}/${total}; ${failed} failed. See browser console.`,
+          failed === 0 ? 'success' : 'error'
+        );
         return;
       }
 
-      // Fallback for browsers without the File System Access API. Still holds
-      // the whole archive in memory, so it can struggle on a large history.
+      // Fallback for browsers without the File System Access API. This keeps
+      // the archive in memory, so report any missing image rather than hiding it.
       const zip = new JSZip();
+      const addOne = async (name: string, load: () => Promise<Blob | null>) => {
+        try {
+          const blob = await load();
+          if (!blob) throw new Error('Image is missing from local history storage');
+          zip.file(name, blob);
+          saved++;
+        } catch (e) {
+          recordFailure(name, e);
+        } finally {
+          markComplete();
+        }
+      };
       for (const entry of history) {
         const ts = entry.timestamp.replace(/[:.]/g, '-');
-        const image = await getImageBlob(entry.id);
-        if (image) zip.file(`goldenhour_${ts}.png`, image);
-
+        await addOne(`goldenhour_${ts}.png`, () => getImageBlob(entry.id));
         if (entry.hasUpscaled) {
-          const upscaled = await getUpscaledBlob(entry.id);
-          if (upscaled) {
-            const label = getRecordScaleLabel(entry, upscaleScale);
-            zip.file(`goldenhour_${ts}_${label}.png`, upscaled);
-          }
+          const label = getRecordScaleLabel(entry, upscaleScale);
+          await addOne(`goldenhour_${ts}_${label}.png`, () => getUpscaledBlob(entry.id));
         }
       }
       // PNG is already compressed; deflating again costs time for nothing.
@@ -317,15 +359,19 @@ export default function HistoryDrawer({
       a.href = url;
       a.download = `goldenhour_all_${new Date().toISOString().slice(0, 10)}.zip`;
       a.click();
-      // Revoking synchronously can cancel a download Chromium has only just
-      // started reading.
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      showToast(
+        failed === 0 ? `Started ZIP download with ${saved} history files.` : `ZIP has ${saved}/${total} files; ${failed} failed. See browser console.`,
+        failed === 0 ? 'success' : 'error'
+      );
     } catch (e) {
       console.error('Failed to export history:', e);
+      showToast(`History export stopped after ${saved}/${total} files. See browser console.`, 'error');
     } finally {
+      exportInProgressRef.current = false;
       setIsExporting(false);
     }
-  }, [history, upscaleScale]);
+  }, [history, upscaleScale, showToast]);
 
   // Download-all from the header button. Depends on the memoized handler rather
   // than on `history`, so it stops re-subscribing on every history change.
