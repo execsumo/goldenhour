@@ -31,7 +31,7 @@ import SettingsModal from './components/SettingsModal';
 import PromptWorkspace from './components/PromptWorkspace';
 import GenerationDisplay from './components/GenerationDisplay';
 import HistoryDrawer from './components/HistoryDrawer';
-import Toast from './components/Toast';
+import Toast, { ToastAction } from './components/Toast';
 import QueuePanel from './components/QueuePanel';
 import { parsePromptList, applyClipModifiers, estimateBatchCost, MAX_BATCH_PROMPTS } from './utils/batch';
 
@@ -98,6 +98,9 @@ function App() {
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'error' | 'success' | 'info'>('info');
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastAction, setToastAction] = useState<ToastAction | null>(null);
+  const toastVisibleRef = useRef(false);
+  const toastTypeRef = useRef<'error' | 'success' | 'info'>('info');
 
   // Clip system
   const [activeClipIds, setActiveClipIds] = useState<Set<string>>(new Set());
@@ -372,16 +375,30 @@ function App() {
     sweepOrphanBlobs().catch(() => {});
   };
 
-  const showToast = useCallback((message: string, type: 'error' | 'success' | 'info' = 'info') => {
+  const showToast = useCallback((
+    message: string,
+    type: 'error' | 'success' | 'info' = 'info',
+    action?: ToastAction
+  ) => {
+    // Keep sticky errors visible until dismissed; export progress/success toasts
+    // must not replace an error before the user has a chance to read it.
+    if (toastVisibleRef.current && toastTypeRef.current === 'error' && type !== 'error') return;
+    toastVisibleRef.current = true;
+    toastTypeRef.current = type;
     setToastMessage(message);
     setToastType(type);
+    setToastAction(action ?? null);
     setToastVisible(true);
   }, []);
 
   // Stable identity matters here: Toast's auto-dismiss effect depends on
   // onDismiss, so an inline arrow restarted the 5s timer on every App render and
   // the toast could hang around indefinitely.
-  const hideToast = useCallback(() => setToastVisible(false), []);
+  const hideToast = useCallback(() => {
+    toastVisibleRef.current = false;
+    setToastVisible(false);
+    setToastAction(null);
+  }, []);
 
   const handleBackendChange = useCallback((b: BackendType) => {
     setActiveBackend(b);
@@ -1396,6 +1413,7 @@ function App() {
         type={toastType}
         visible={toastVisible}
         onDismiss={hideToast}
+        action={toastAction}
       />
     </div>
   );

@@ -1,11 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { AlertCircle, CheckCircle, Info, X } from 'lucide-react';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastProps {
   message: string;
   type: 'error' | 'success' | 'info';
   visible: boolean;
   onDismiss: () => void;
+  action?: ToastAction | null;
 }
 
 const icons = {
@@ -20,15 +26,15 @@ const styles: Record<string, { border: string; bg: string; text: string }> = {
   info:    { border: 'rgba(212,160,23,0.2)',  bg: 'rgba(212,160,23,0.06)', text: '#fbbf24' },
 };
 
-export default function Toast({ message, type, visible, onDismiss }: ToastProps) {
+export default function Toast({ message, type, visible, onDismiss, action }: ToastProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    if (visible) {
+    if (visible && type !== 'error') {
       timerRef.current = setTimeout(() => onDismiss(), 5000);
     }
     return () => clearTimeout(timerRef.current);
-  }, [visible, onDismiss]);
+  }, [visible, message, type, onDismiss]);
 
   if (!visible) return null;
 
@@ -36,9 +42,11 @@ export default function Toast({ message, type, visible, onDismiss }: ToastProps)
   const s = styles[type];
 
   return (
-    <div className="fixed top-4 right-4 z-[100] toast-enter">
+    <div className="fixed left-1/2 top-[26px] z-[100] -translate-x-1/2 -translate-y-1/2 toast-enter pointer-events-none">
       <div
-        className="flex items-center gap-3 px-4 py-3 rounded-xl max-w-sm animate-fade-in"
+        role={type === 'error' ? 'alert' : 'status'}
+        aria-live={type === 'error' ? 'assertive' : 'polite'}
+        className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl max-w-[min(24rem,calc(100vw-2rem))] animate-fade-in"
         style={{
           background: s.bg,
           border: `1px solid ${s.border}`,
@@ -49,7 +57,18 @@ export default function Toast({ message, type, visible, onDismiss }: ToastProps)
       >
         <Icon size={15} className="shrink-0" />
         <p className="text-[12px] flex-1 font-medium">{message}</p>
-        <button onClick={onDismiss} className="shrink-0 p-1 rounded-md hover:bg-white/10 transition-colors">
+        {action && (
+          <button
+            onClick={() => {
+              onDismiss();
+              action.onClick();
+            }}
+            className="shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold hover:bg-white/10 transition-colors"
+          >
+            {action.label}
+          </button>
+        )}
+        <button onClick={onDismiss} aria-label="Dismiss notification" className="shrink-0 p-1 rounded-md hover:bg-white/10 transition-colors">
           <X size={12} />
         </button>
       </div>

@@ -6,6 +6,7 @@ import { getRemixRestore, setRemixRestore } from '../utils/settings';
 import { backendSupportsFeature } from '../utils/backendProvider';
 import { useObjectUrl } from '../hooks/useObjectUrl';
 import JSZip from 'jszip';
+import type { ToastAction } from './Toast';
 
 interface HistoryDrawerProps {
   open: boolean;
@@ -17,7 +18,7 @@ interface HistoryDrawerProps {
   onDelete: (id: string) => void;
   onClearAll: () => void;
   onUpscaleRecord: (recordId: string) => Promise<void>;
-  showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
+  showToast: (message: string, type?: 'error' | 'success' | 'info', action?: ToastAction) => void;
 }
 
 // ─── File System Access ──────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ interface HistoryDrawerProps {
 interface FileSystemWritableLike {
   write(data: Blob): Promise<void>;
   close(): Promise<void>;
+  abort?: () => Promise<void>;
 }
 interface FileSystemFileHandleLike {
   createWritable(): Promise<FileSystemWritableLike>;
@@ -34,6 +36,7 @@ interface FileSystemDirectoryHandleLike {
   getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandleLike>;
 }
 type DirectoryPicker = (options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandleLike>;
+type ExportFileTask = { name: string; load: () => Promise<Blob | null> };
 
 /** Stream a Blob straight to disk. The bytes never materialise on the JS heap. */
 async function writeFileTo(
@@ -43,8 +46,13 @@ async function writeFileTo(
 ): Promise<void> {
   const handle = await dir.getFileHandle(name, { create: true });
   const writable = await handle.createWritable();
-  await writable.write(blob);
-  await writable.close();
+  try {
+    await writable.write(blob);
+    await writable.close();
+  } catch (error) {
+    try { await writable.abort?.(); } catch { /* best-effort cleanup before retry */ }
+    throw error;
+  }
 }
 
 function getRecordScaleLabel(
@@ -264,21 +272,116 @@ export default function HistoryDrawer({
     exportInProgressRef.current = true;
     setIsExporting(true);
 
-    const total = history.reduce((count, entry) => count + 1 + (entry.hasUpscaled ? 1 : 0), 0);
+    const files: ExportFileTask[] = [];
+    for (const entry of history) {
+      const ts = entry.timestamp.replace(/[:.]/g, '-');
+      files.push({ name: `goldenhour_${ts}.png`, load: () => getImageBlob(entry.id) });
+      if (entry.hasUpscaled) {
+        const label = getRecordScaleLabel(entry, upscaleScale);
+        files.push({ name: `goldenhour_${ts}_${label}.png`, load: () => getUpscaledBlob(entry.id) });
+      }
+    }
+
+    let dir: FileSystemDirectoryHandleLike | null = null;
     let completed = 0;
     let saved = 0;
-    let failed = 0;
-    const markComplete = () => {
-      completed++;
-      if (completed % 10 === 0 && completed < total) {
-        showToast(`Saving history: ${completed}/${total} files…`, 'info');
-      }
+    const failedFiles: ExportFileTask[] = [];
+    const notifyProgress = (label: string, done: number, total: number) => {
+      if (done % 10 === 0 && done < total) showToast(`${label}: ${done}/${total} files…`, 'info');
     };
+    const downloadZip = async (zip: JSZip, name: string) => {
+      const content = await zip.generateAsync({ type: 'blob', compression: 'STORE', streamFiles: true });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    };
+
+    function retryActionFor(tasks: ExportFileTask[], directory: FileSystemDirectoryHandleLike | null): ToastAction {
+      const retryTasks = [...tasks];
+      return {
+        label: `Retry ${retryTasks.length} failed`,
+        onClick: () => { void retryFailed(retryTasks, directory); },
+      };
+    }
+
+    async function retryFailed(tasks: ExportFileTask[], directory: FileSystemDirectoryHandleLike | null): Promise<void> {
+      if (tasks.length === 0 || exportInProgressRef.current) return;
+      exportInProgressRef.current = true;
+      setIsExporting(true);
+      showToast(`Retrying ${tasks.length} failed files…`, 'info');
+
+      let retried = 0;
+      let attempted = 0;
+      const stillFailed: ExportFileTask[] = [];
+      try {
+        if (directory) {
+          for (const task of tasks) {
+            try {
+              const blob = await task.load();
+              if (!blob) throw new Error('Image is missing from local history storage');
+              await writeFileTo(directory, task.name, blob);
+              retried++;
+            } catch (e) {
+              console.error(`Retry failed for ${task.name}:`, e);
+              stillFailed.push(task);
+            }
+            attempted++;
+            notifyProgress('Retrying failed files', attempted, tasks.length);
+          }
+        } else {
+          const zip = new JSZip();
+          for (const task of tasks) {
+            try {
+              const blob = await task.load();
+              if (!blob) throw new Error('Image is missing from local history storage');
+              zip.file(task.name, blob);
+              retried++;
+            } catch (e) {
+              console.error(`Retry failed for ${task.name}:`, e);
+              stillFailed.push(task);
+            }
+            attempted++;
+            notifyProgress('Retrying failed files', attempted, tasks.length);
+          }
+          if (retried > 0) {
+            await downloadZip(zip, `goldenhour_retry_${new Date().toISOString().slice(0, 10)}.zip`);
+          }
+        }
+
+        if (stillFailed.length > 0) {
+          showToast(
+            `Retry saved ${retried}; ${stillFailed.length} still failed.`,
+            'error',
+            retryActionFor(stillFailed, directory)
+          );
+        } else {
+          showToast(`Retry succeeded: saved ${retried} previously failed files.`, 'success');
+        }
+      } catch (e) {
+        console.error('Failed while retrying history export:', e);
+        // If ZIP generation failed, none of its contents were delivered. Retry
+        // those files too; successful directory writes are never included here.
+        const retryable = directory
+          ? [...stillFailed, ...tasks.slice(attempted)]
+          : tasks;
+        const uniqueRetryable = [...new Map(retryable.map((task) => [task.name, task])).values()];
+        showToast(
+          `Retry stopped; ${uniqueRetryable.length} files still need saving.`,
+          'error',
+          retryActionFor(uniqueRetryable, directory)
+        );
+      } finally {
+        exportInProgressRef.current = false;
+        setIsExporting(false);
+      }
+    }
 
     try {
       // The picker call must happen before the first `await` or the user
       // activation is already spent and it fails silently.
-      let dir: FileSystemDirectoryHandleLike | null = null;
       const picker = (window as unknown as { showDirectoryPicker?: DirectoryPicker }).showDirectoryPicker;
       if (picker) {
         try {
@@ -286,87 +389,71 @@ export default function HistoryDrawer({
         } catch (e) {
           if (e instanceof Error && e.name !== 'AbortError') {
             console.error('Could not open history export folder:', e);
-            showToast('Could not open the selected export folder.', 'error');
+            showToast('Could not open the selected export folder.', 'error', {
+              label: 'Retry export',
+              onClick: () => { void handleDownloadAll(); },
+            });
           }
-          return; // cancelled or unavailable
+          return; // cancelled
         }
       }
 
-      const recordFailure = (name: string, error: unknown) => {
-        failed++;
-        console.error(`Failed to export ${name}:`, error);
-      };
-
       if (dir) {
-        // One image resident at a time. Handle each file independently: a single
-        // failed write must not silently abort the rest of a large export.
-        const saveOne = async (name: string, load: () => Promise<Blob | null>) => {
+        // Save sequentially, but remember only failed files for targeted retries.
+        for (const task of files) {
           try {
-            const blob = await load();
+            const blob = await task.load();
             if (!blob) throw new Error('Image is missing from local history storage');
-            await writeFileTo(dir!, name, blob);
+            await writeFileTo(dir, task.name, blob);
             saved++;
           } catch (e) {
-            recordFailure(name, e);
-          } finally {
-            markComplete();
+            console.error(`Failed to export ${task.name}:`, e);
+            failedFiles.push(task);
           }
-        };
-
-        for (const entry of history) {
-          const ts = entry.timestamp.replace(/[:.]/g, '-');
-          await saveOne(`goldenhour_${ts}.png`, () => getImageBlob(entry.id));
-
-          if (entry.hasUpscaled) {
-            const label = getRecordScaleLabel(entry, upscaleScale);
-            await saveOne(`goldenhour_${ts}_${label}.png`, () => getUpscaledBlob(entry.id));
-          }
+          completed++;
+          notifyProgress('Saving history', completed, files.length);
         }
         showToast(
-          failed === 0 ? `Saved all ${saved} history files.` : `Saved ${saved}/${total}; ${failed} failed. See browser console.`,
-          failed === 0 ? 'success' : 'error'
+          failedFiles.length === 0 ? `Saved all ${saved} history files.` : `Saved ${saved}/${files.length}; ${failedFiles.length} failed.`,
+          failedFiles.length === 0 ? 'success' : 'error',
+          failedFiles.length === 0 ? undefined : retryActionFor(failedFiles, dir)
         );
         return;
       }
 
       // Fallback for browsers without the File System Access API. This keeps
-      // the archive in memory, so report any missing image rather than hiding it.
+      // the archive in memory, so report missing blobs and retry only those.
       const zip = new JSZip();
-      const addOne = async (name: string, load: () => Promise<Blob | null>) => {
+      for (const task of files) {
         try {
-          const blob = await load();
+          const blob = await task.load();
           if (!blob) throw new Error('Image is missing from local history storage');
-          zip.file(name, blob);
+          zip.file(task.name, blob);
           saved++;
         } catch (e) {
-          recordFailure(name, e);
-        } finally {
-          markComplete();
+          console.error(`Failed to add ${task.name} to history ZIP:`, e);
+          failedFiles.push(task);
         }
-      };
-      for (const entry of history) {
-        const ts = entry.timestamp.replace(/[:.]/g, '-');
-        await addOne(`goldenhour_${ts}.png`, () => getImageBlob(entry.id));
-        if (entry.hasUpscaled) {
-          const label = getRecordScaleLabel(entry, upscaleScale);
-          await addOne(`goldenhour_${ts}_${label}.png`, () => getUpscaledBlob(entry.id));
-        }
+        completed++;
+        notifyProgress('Preparing history ZIP', completed, files.length);
       }
-      // PNG is already compressed; deflating again costs time for nothing.
-      const content = await zip.generateAsync({ type: 'blob', compression: 'STORE', streamFiles: true });
-      const url = URL.createObjectURL(content);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `goldenhour_all_${new Date().toISOString().slice(0, 10)}.zip`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      await downloadZip(zip, `goldenhour_all_${new Date().toISOString().slice(0, 10)}.zip`);
       showToast(
-        failed === 0 ? `Started ZIP download with ${saved} history files.` : `ZIP has ${saved}/${total} files; ${failed} failed. See browser console.`,
-        failed === 0 ? 'success' : 'error'
+        failedFiles.length === 0 ? `Started ZIP download with ${saved} history files.` : `ZIP has ${saved}/${files.length}; ${failedFiles.length} failed.`,
+        failedFiles.length === 0 ? 'success' : 'error',
+        failedFiles.length === 0 ? undefined : retryActionFor(failedFiles, null)
       );
     } catch (e) {
       console.error('Failed to export history:', e);
-      showToast(`History export stopped after ${saved}/${total} files. See browser console.`, 'error');
+      // A failed ZIP build/download means the entire ZIP batch needs another
+      // attempt; directory exports retry only the failed and unattempted files.
+      const retryable = dir ? [...failedFiles, ...files.slice(completed)] : files;
+      const uniqueRetryable = [...new Map(retryable.map((task) => [task.name, task])).values()];
+      showToast(
+        `History export stopped; ${uniqueRetryable.length} files need saving.`,
+        'error',
+        retryActionFor(uniqueRetryable, dir)
+      );
     } finally {
       exportInProgressRef.current = false;
       setIsExporting(false);
