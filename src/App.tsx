@@ -1233,6 +1233,7 @@ function App() {
           onDelete={handleDeleteHistory}
           onClearAll={handleClearHistory}
           onUpscaleRecord={handleUpscaleRecord}
+          showToast={showToast}
         />
 
         <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
